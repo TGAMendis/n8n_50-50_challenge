@@ -54,9 +54,9 @@ Each automation:
 [View Workflow](https://github.com/SaiAkhil066/n8n_50-50_challenge/blob/main/Day_5__AI_Content_Repurposing_Machine.json)
 
 ### ✅ Day 6: Whatsapp AI Lead Responder
-**Today's Build:** An AI Content Repurposing Machine that turns one piece of content into 6 platform-optimized versions. Because manually rewriting the same post for LinkedIn, Twitter, Instagram, YouTube, newsletter, and blog is SO 2023.
+**Today's Build:** Sharing a complete guide on building an intelligent WhatsApp automation system using open-source tools. This handles customer inquiries 24/7 with AI-powered responses.
 
-**Time Saved:** ~1 hour daily.
+**Time Saved:** Many hours daily.
 
 [View Workflow](https://github.com/SaiAkhil066/n8n_50-50_challenge/blob/main/Day_5__AI_Content_Repurposing_Machine.json)
 
