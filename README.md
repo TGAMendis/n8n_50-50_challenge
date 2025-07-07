@@ -58,7 +58,7 @@ Each automation:
 
 **Time Saved:** Many hours daily.
 
-[View Workflow](https://github.com/SaiAkhil066/n8n_50-50_challenge/blob/main/Day_5__AI_Content_Repurposing_Machine.json)
+[View Workflow](https://github.com/SaiAkhil066/n8n_50-50_challenge/blob/main/Day_6__Whatsapp_AI_Lead_Responder.json)
 
 
 ## Want to Use These?
