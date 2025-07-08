@@ -62,7 +62,7 @@ Each automation:
 
 ### ✅ Day7: Reddit AI Outreach
 
-## How It Works (Video Demo (Google Drive's link in the .txt file)
+**How It Works (Video Demo (Google Drive's link in the .txt file))**
 
 1. **I set targets**: Type subreddits (r/startups, r/entrepreneur) and keywords ("manual process", "repetitive", "scale")
 2. **Adjust AI confidence**: Set minimum threshold (I use 70%)
