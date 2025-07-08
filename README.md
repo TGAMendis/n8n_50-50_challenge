@@ -60,6 +60,16 @@ Each automation:
 
 [View Workflow](https://github.com/SaiAkhil066/n8n_50-50_challenge/blob/main/Day_6__Whatsapp_AI_Lead_Responder.json)
 
+### ✅ Day7: Reddit AI Outreach
+
+## How It Works (Video Demo (Google Drive's link in the .txt file)
+
+1. **I set targets**: Type subreddits (r/startups, r/entrepreneur) and keywords ("manual process", "repetitive", "scale")
+2. **Adjust AI confidence**: Set minimum threshold (I use 70%)
+3. **Hit search**: The AI starts analyzing posts in real-time
+4. **Magic happens**: It finds relevant posts and generates contextual messages
+5. **One-click outreach**: Copy message → Click post → Paste → Send → Mark contacted
+
 
 ## Want to Use These?
 
