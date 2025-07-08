@@ -2,9 +2,7 @@
 
 **[Watch the Live Demo Video Here](https://drive.google.com/file/d/1HHyNIBZiTzv0gWn56ByQElteQJTP1gu_/view?usp=sharing)**
 
----
-
-Hey r/Automation! 
+--- 
 
 I'm on Day 7 of my 50 Days 50 AI Automation challenge, and today I want to show you something I built that's been a game-changer for my freelance business.
 
