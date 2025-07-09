@@ -1,0 +1,365 @@
+{
+  "name": "Day 8 AI Web scraper",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "839091e1-4ac9-455c-b62a-369f03b13039",
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [
+        460,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json[\"url\"] }}",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          }
+        }
+      },
+      "id": "715de57a-6ed4-41b8-aed9-77072938e31b",
+      "name": "Fetch Webpage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        660,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the full HTML response\nconst html = $input.item.json.data || $input.item.json.body || JSON.stringify($input.item.json);\nconst url = $node[\"Set Test URL\"].json.url;\n\n// Extract title\nconst titleMatch = html.match(/<title>(.*?)<\\/title>/i);\nconst title = titleMatch ? titleMatch[1] : 'No Title';\n\n// Remove script and style tags\nlet cleanHtml = html.replace(/<script\\b[^<]*(?:(?!<\\/script>)<[^<]*)*<\\/script>/gi, '');\ncleanHtml = cleanHtml.replace(/<style\\b[^<]*(?:(?!<\\/style>)<[^<]*)*<\\/style>/gi, '');\n\n// Extract text content\nconst textContent = cleanHtml.replace(/<[^>]+>/g, ' ')\n  .replace(/\\s+/g, ' ')\n  .trim()\n  .substring(0, 5000);\n\nreturn {\n  url: url,\n  title: title,\n  content: textContent,\n  scrapedAt: new Date().toISOString()\n};"
+      },
+      "id": "db3a63b8-0f8b-4b0a-b163-68372fbf3ad9",
+      "name": "Process Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        880,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "scraped_pages",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "url",
+              "fieldValue": "={{ $json[\"url\"] }}"
+            },
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $json[\"title\"] }}"
+            },
+            {
+              "fieldId": "raw_content",
+              "fieldValue": "={{ $json[\"content\"] }}"
+            },
+            {
+              "fieldId": "scraped_at",
+              "fieldValue": "={{ $json[\"scrapedAt\"] }}"
+            }
+          ]
+        }
+      },
+      "id": "4992be02-ee59-4e98-ade9-085d90fb6e8d",
+      "name": "Save to Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1080,
+        240
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "DqCaZtvmLOcgFcIW",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"deepseek-chat\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a helpful assistant that summarizes web content.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $node[\"Process Content\"].json.content }}\"\n    }\n  ],\n  \"max_tokens\": 300\n}",
+        "options": {}
+      },
+      "id": "e9d2ffe8-22c8-407a-bd07-ae06479bca9a",
+      "name": "Get AI Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1260,
+        240
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "vSAJXOzWrX84Exvs",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract the AI summary from DeepSeek response\nconst deepseekResponse = $input.item.json;\nconst previousData = $node[\"Process Content\"].json;\n\nlet summary = 'Summary generation failed';\n\ntry {\n  if (deepseekResponse.choices && deepseekResponse.choices[0]) {\n    summary = deepseekResponse.choices[0].message.content;\n  }\n} catch (error) {\n  console.error('Error extracting summary:', error);\n}\n\nreturn {\n  ...previousData,\n  aiSummary: summary,\n  recordId: $node[\"Save to Supabase\"].json.id\n};"
+      },
+      "id": "41977e47-41f3-4bc8-a3af-3b0d9071525f",
+      "name": "Extract Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1460,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "scraped_pages",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json[\"recordId\"] }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "ai_summary",
+              "fieldValue": "={{ $json[\"aiSummary\"] }}"
+            }
+          ]
+        }
+      },
+      "id": "4554c9a6-7bd6-4269-b026-522fbfd1df53",
+      "name": "Update Supabase with Summary",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        240
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "DqCaZtvmLOcgFcIW",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get data from previous nodes\nconst processedData = $node[\"Process Content\"].json;\nconst summaryData = $node[\"Extract Summary\"].json;\n\n// Create HTML content for PDF\nconst htmlContent = `\n<!DOCTYPE html>\n<html>\n<head>\n    <style>\n        body { font-family: Arial, sans-serif; margin: 40px; }\n        h1 { color: #333; border-bottom: 2px solid #333; padding-bottom: 10px; }\n        h2 { color: #666; margin-top: 30px; }\n        .meta { color: #999; font-size: 14px; margin-bottom: 20px; }\n        .summary { background-color: #f0f0f0; padding: 20px; border-radius: 5px; margin: 20px 0; }\n        .content { margin-top: 30px; line-height: 1.6; }\n        .footer { margin-top: 50px; font-size: 12px; color: #999; text-align: center; }\n    </style>\n</head>\n<body>\n    <h1>${processedData.title || 'Untitled'}</h1>\n    <div class=\"meta\">\n        <p><strong>URL:</strong> ${processedData.url}</p>\n        <p><strong>Scraped on:</strong> ${new Date(processedData.scrapedAt).toLocaleString()}</p>\n    </div>\n    \n    <h2>AI Summary</h2>\n    <div class=\"summary\">\n        ${summaryData.aiSummary || 'No summary available'}\n    </div>\n    \n    <h2>Full Content</h2>\n    <div class=\"content\">\n        ${processedData.content ? processedData.content.substring(0, 3000) : 'No content available'}${processedData.content && processedData.content.length > 3000 ? '...' : ''}\n    </div>\n    \n    <div class=\"footer\">\n        <p>Generated by Web Scraper Bot</p>\n    </div>\n</body>\n</html>\n`;\n\nreturn {\n  htmlContent: htmlContent,\n  fileName: `${(processedData.title || 'webpage').replace(/[^a-z0-9]/gi, '_').substring(0, 50)}_${Date.now()}.pdf`\n};"
+      },
+      "id": "aeb308e2-bfef-479b-9d72-1de8a20410d2",
+      "name": "Prepare PDF Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1860,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "url",
+              "value": "https://docs.n8n.io/hosting/"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "40818e3d-18eb-4e40-9f8d-51e6d2c65d15",
+      "name": "Set Test URL",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        460,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "afb4ce96-32a0-46e8-89fa-cb9ed54def7b",
+              "name": "html_content",
+              "value": "={{ $node[\"Prepare PDF Content\"].json.htmlContent }}",
+              "type": "string"
+            },
+            {
+              "id": "087a7624-6cfc-4cbf-8743-6c50fd753e85",
+              "name": "file_name",
+              "value": "={{ $node[\"Prepare PDF Content\"].json.fileName }}",
+              "type": "string"
+            },
+            {
+              "id": "a06aadf4-4b81-4104-b6e4-c13cfe2948ac",
+              "name": "summary",
+              "value": "={{ $node[\"Extract Summary\"].json.aiSummary }}",
+              "type": "string"
+            },
+            {
+              "id": "fb33c343-c271-4e92-b568-79aafe7d2331",
+              "name": "scraped_url",
+              "value": "={{ $node[\"Process Content\"].json.url }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2060,
+        240
+      ],
+      "id": "d5d5e5a7-f016-451d-a498-0a63b0317f0c",
+      "name": "Final Output"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Set Test URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Test URL": {
+      "main": [
+        [
+          {
+            "node": "Fetch Webpage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Webpage": {
+      "main": [
+        [
+          {
+            "node": "Process Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Content": {
+      "main": [
+        [
+          {
+            "node": "Save to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Supabase": {
+      "main": [
+        [
+          {
+            "node": "Get AI Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get AI Summary": {
+      "main": [
+        [
+          {
+            "node": "Extract Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Summary": {
+      "main": [
+        [
+          {
+            "node": "Update Supabase with Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Supabase with Summary": {
+      "main": [
+        [
+          {
+            "node": "Prepare PDF Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare PDF Content": {
+      "main": [
+        [
+          {
+            "node": "Final Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final Output": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "bbf3958d-c453-4b8f-9a4f-4d1e3d543000",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6298067642c3e349581f2e29092e2f6c83f0a76b4135fb1998c90c198e1c5829"
+  },
+  "id": "LGtgbz6eBkieoQem",
+  "tags": []
+}
