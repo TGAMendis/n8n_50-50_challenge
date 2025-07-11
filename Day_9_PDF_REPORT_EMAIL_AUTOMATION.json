@@ -1,0 +1,346 @@
+{
+  "name": "PDF REPORT EMAIL AUTOMATION",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {},
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "id": "0e27c7c4-ea63-42a6-9e91-80766bacec1a",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1,
+      "position": [
+        40,
+        -300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "thLIJIP2d5owMDnz",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n{\n  \"model\": \"deepseek-chat\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an expert digital marketing analyst. Create a concise, professional summary of the monthly ad performance report. Focus on key metrics, trends, and actionable insights.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Please analyze this monthly ad performance report and provide a summary in the following format:\\n\\n**Executive Summary**\\n- Reporting Period\\n- Total Ad Spend\\n- Total Conversions\\n- Overall Performance Status\\n\\n**Google Ads Performance**\\n- Key metrics (Cost, Clicks, Conversions, CPA)\\n- Month-over-month changes\\n- Top performing campaigns\\n\\n**Facebook Ads Performance**\\n- Key metrics (Cost, Impressions, Leads, Cost per Lead)\\n- Month-over-month changes\\n- Best performing audiences\\n\\n**Key Insights & Recommendations**\\n- 3-4 bullet points of actionable insights\\n\\nReport content:\\n\" + $node[\"Code\"].json.text\n    }\n  ],\n  \"temperature\": 0.3,\n  \"max_tokens\": 800\n}\n}}",
+        "options": {}
+      },
+      "id": "07ea6cfc-506e-42d8-b18c-7c6785e1e788",
+      "name": "Generate AI Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        220,
+        20
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "vSAJXOzWrX84Exvs",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "clientName",
+              "stringValue": "={{ $json.text.match(/New Beauty Wellness/i)?.[0] || \"New Beauty Wellness\" }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c0b9f2d8-271e-4cd9-ac1a-4b42bc155ca2",
+      "name": "Extract Client Name",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        480,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "sheetId": "1DoRiceca7pqvgont8XqhHvsrs3r-pu_DcPr9jmY3vCQ",
+        "range": "A:B",
+        "options": {}
+      },
+      "id": "5929e069-9da2-44a8-b12f-2e6d9e19b7b1",
+      "name": "Get Client Database",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 2,
+      "position": [
+        640,
+        -300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "DCGrCjADin2huwok",
+          "name": "Google Sheets account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "summary",
+              "stringValue": "={{ $json.choices[0].message.content }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a0cd4a8b-eaf5-42f0-aeeb-73f04f3675e9",
+      "name": "Extract Summary",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        360,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "=Your Monthly Ad Performance Report - {{ $('Extract Client Name').item.json.clientName }} - April 2025",
+        "message": "=Hi Team,\n\nPlease find attached your monthly ad performance report along with our analysis below.\n\n{{ $json.summary }}\n\nPlease don't hesitate to reach out if you have any questions or would like to discuss strategies for next month.\n\nBest regards,\n[Your Agency Name]",
+        "options": {
+          "sendTo": "={{ $('Get Client Database').item.json['Email Address'] }}"
+        }
+      },
+      "id": "55badc41-7a35-4e26-9155-1c859066ce0f",
+      "name": "Create Email Draft",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        500,
+        20
+      ],
+      "webhookId": "f6ba4fd2-333c-48c6-85e0-ff43172cf786",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "thLIJIP2d5owMDnz",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "341a8fa6-0d69-443b-a911-f8b6ddf51885",
+      "name": "Log Success",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        640,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "attachment_0",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        200,
+        -300
+      ],
+      "id": "b04e1d27-576d-49a4-956c-7426392e0cb5",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a1cdf5b2-7c62-4993-94ae-e1c4a463bad8",
+              "leftValue": "={{ $json[\"Client Name\"] }}",
+              "rightValue": "={{ $items(\"Extract Client Name\")[0].json.clientName }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        40,
+        20
+      ],
+      "id": "c9d0d59c-0b1b-42ec-b3be-2fd9149c04da",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        340,
+        -300
+      ],
+      "id": "aa003a56-e4a9-44dd-8616-c019506c591d",
+      "name": "Code"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Extract Client Name": {
+      "main": [
+        [
+          {
+            "node": "Get Client Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Client Database": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate AI Summary": {
+      "main": [
+        [
+          {
+            "node": "Extract Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Summary": {
+      "main": [
+        [
+          {
+            "node": "Create Email Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Email Draft": {
+      "main": [
+        [
+          {
+            "node": "Log Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Generate AI Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Extract Client Name",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "01070c99-0218-4bc6-a32b-da4464919592",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6298067642c3e349581f2e29092e2f6c83f0a76b4135fb1998c90c198e1c5829"
+  },
+  "id": "h6Cvm653BNFJ1qFo",
+  "tags": []
+}
