@@ -70,6 +70,7 @@ Each automation:
 4. **Magic happens**: It finds relevant posts and generates contextual messages
 5. **One-click outreach**: Copy message → Click post → Paste → Send → Mark contacted
 
+### And So On.....
 
 ## Want to Use These?
 
