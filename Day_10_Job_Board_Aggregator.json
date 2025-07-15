@@ -5,7 +5,7 @@
       "parameters": {
         "documentId": {
           "__rl": true,
-          "value": "1YsMr37OvaSSLOpTIPz0n37qnLR2Sd5ENpLBMggMKZYE",
+          "value": "xxxxxx",
           "mode": "id"
         },
         "sheetName": {
@@ -13,7 +13,7 @@
           "value": "gid=0",
           "mode": "list",
           "cachedResultName": "Job Board Aggregator",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1YsMr37OvaSSLOpTIPz0n37qnLR2Sd5ENpLBMggMKZYE/edit#gid=0"
+          "cachedResultUrl": "xxxxxx"
         },
         "options": {}
       },
