@@ -1,0 +1,289 @@
+{
+  "name": "Job Board Aggregator",
+  "nodes": [
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1YsMr37OvaSSLOpTIPz0n37qnLR2Sd5ENpLBMggMKZYE",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Job Board Aggregator",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1YsMr37OvaSSLOpTIPz0n37qnLR2Sd5ENpLBMggMKZYE/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        700,
+        -200
+      ],
+      "id": "d64d5d2c-9fcd-44d5-a35e-72456337ea9b",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "DCGrCjADin2huwok",
+          "name": "Google Sheets account 3"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1140,
+        -200
+      ],
+      "id": "1f5c1d7d-cf79-4738-be92-8f5966924c52",
+      "name": "Wait",
+      "webhookId": "447a5070-78f7-4506-9adb-a1546fccba1c"
+    },
+    {
+      "parameters": {
+        "url": "https://api.adzuna.com/v1/api/jobs/us/search/1",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "app_id",
+              "value": "27f15cf6"
+            },
+            {
+              "name": "app_key",
+              "value": "9f695eaf43dda2af1547559b8e138a97"
+            },
+            {
+              "name": "results_per_page",
+              "value": "50"
+            },
+            {
+              "name": "what",
+              "value": "={{$json.searchTerms}}"
+            },
+            {
+              "name": "where",
+              "value": "={{$json.zipcode}}"
+            },
+            {
+              "name": "distance",
+              "value": "={{$json.miles}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Fetch Jobs from API",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1540,
+        -200
+      ],
+      "id": "588646d8-4357-4c28-b731-52b1fbab9cea",
+      "typeVersion": 4.2,
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "row_number, [\"Industry Name\"], [\"Industry Description\"], [\"Search \n Terms/Keywords\"], [\"Keyword Exclusions\"], [\"Location Exclusions\"], [\"Full Time / Part Time / Other\"], [\"Post type exclusions\"]",
+        "include": "allOtherFields",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        920,
+        -200
+      ],
+      "id": "ef88ac30-dee1-4992-96be-c433bf4f1525",
+      "name": "Split Out",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all searches\nconst allSearches = $input.all();\nconst allJobs = [];\nconst errors = [];\nconst BATCH_SIZE = 5; // Process 5 searches at once\nconst DELAY_BETWEEN_BATCHES = 1000; // 1 second\n\nconsole.log(`Processing ${allSearches.length} searches in batches of ${BATCH_SIZE}...`);\n\n// Helper function to process a single search\nasync function processSearch(search, index) {\n  try {\n    const searchTermsKey = Object.keys(search).find(key => key.includes(\"Search\") && key.includes(\"Terms\"));\n    const searchTerms = searchTermsKey ? search[searchTermsKey] : \"\";\n    const location = search[\"Location & Mileage Radius\"] || \"\";\n    \n    if (!searchTerms) return [];\n    \n    const locationParts = location.split(',');\n    const zipcode = locationParts[0]?.trim() || \"40502\";\n    const miles = locationParts[1]?.trim().split(' ')[0] || \"100\";\n    \n    const response = await this.helpers.httpRequest({\n      method: 'GET',\n      url: 'https://api.adzuna.com/v1/api/jobs/us/search/1',\n      qs: {\n        app_id: '27f15cf6',\n        app_key: '9f695eaf43dda2af1547559b8e138a97',\n        results_per_page: 20, // Reduced to speed up\n        what: searchTerms,\n        where: zipcode,\n        distance: miles\n      },\n      timeout: 5000\n    });\n    \n    const jobs = [];\n    if (response.results) {\n      response.results.forEach(job => {\n        jobs.push({\n  title: job.title || \"\",\n  company: job.company?.display_name || \"\",\n  location: job.location?.display_name || \"\",\n  salary: job.salary_min || null,\n  easyApply: false,  // Add this back\n  url: job.redirect_url || \"\",\n  summary: job.description || \"\",\n  postDate: job.created ? job.created.split('T')[0] : \"\",\n  isAd: false,  // Add this back\n  jobKey: job.id || \"\",\n  isSponsored: false,  // Add this back\n  searchCategory: search[\"[\\\"Industry Name\\\"]\"] || searchTerms.substring(0, 30)\n});\n      });\n    }\n    return jobs;\n  } catch (error) {\n    errors.push({ search: index, error: error.message });\n    return [];\n  }\n}\n\n// Process in batches\nfor (let i = 0; i < allSearches.length; i += BATCH_SIZE) {\n  const batch = allSearches.slice(i, i + BATCH_SIZE);\n  console.log(`Processing batch ${Math.floor(i/BATCH_SIZE) + 1} of ${Math.ceil(allSearches.length/BATCH_SIZE)}`);\n  \n  // Process batch in parallel\n  const batchPromises = batch.map((search, idx) => \n    processSearch(search.json, i + idx)\n  );\n  \n  const batchResults = await Promise.all(batchPromises);\n  \n  // Flatten and add to allJobs\n  batchResults.forEach(jobs => allJobs.push(...jobs));\n  \n  // Delay between batches (except for last batch)\n  if (i + BATCH_SIZE < allSearches.length) {\n    await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));\n  }\n}\n\n// Remove duplicates\nconst uniqueJobs = [];\nconst seenKeys = new Set();\n\nallJobs.forEach(job => {\n  if (!seenKeys.has(job.jobKey)) {\n    seenKeys.add(job.jobKey);\n    uniqueJobs.push(job);\n  }\n});\n\n// Group by category for summary\nconst jobsByCategory = {};\nuniqueJobs.forEach(job => {\n  if (!jobsByCategory[job.searchCategory]) {\n    jobsByCategory[job.searchCategory] = 0;\n  }\n  jobsByCategory[job.searchCategory]++;\n});\n\nreturn [{\n  json: {\n    jobs: uniqueJobs,\n    totalJobs: uniqueJobs.length,\n    searchesProcessed: allSearches.length,\n    jobsByCategory: jobsByCategory,\n    errors: errors,\n    processingTime: `~${Math.ceil(allSearches.length/BATCH_SIZE) * (DELAY_BETWEEN_BATCHES/1000)} seconds`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        -200
+      ],
+      "id": "264a99c3-5423-49d2-9d79-a565f01f2eb8",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the job results and exclusion lists\nconst results = $input.item.json.results || [];\nconst keywordExclusions = $node[\"Code\"].json.keywordExclusions || \"\";\nconst locationExclusions = $node[\"Code\"].json.locationExclusions || \"\";\n\n// Convert exclusions to arrays and clean them up\nconst excludedKeywords = keywordExclusions.split(',').map(k => k.trim().toLowerCase()).filter(k => k);\n\n// For testing, only exclude states and major cities, not counties\nconst majorExclusions = [\"ohio\", \"indiana\", \"west virginia\", \"tennessee\", \"louisville\", \"cincinnati\"];\nconst excludedLocations = locationExclusions.split(',')\n  .map(l => l.trim().toLowerCase())\n  .filter(l => majorExclusions.includes(l.toLowerCase()));\n\n// Filter jobs\nconst filteredJobs = results.filter(job => {\n  const jobTitle = (job.title || \"\").toLowerCase();\n  const jobDescription = (job.description || \"\").toLowerCase();\n  const jobLocation = (job.location?.display_name || \"\").toLowerCase();\n  \n  // Check keyword exclusions in title only (not description for now)\n  const hasExcludedKeyword = excludedKeywords.some(keyword => \n    jobTitle.includes(keyword)\n  );\n  \n  // Check location exclusions\n  const hasExcludedLocation = excludedLocations.some(location => \n    jobLocation.includes(location)\n  );\n  \n  // Return true if job should be kept (no exclusions found)\n  return !hasExcludedKeyword && !hasExcludedLocation;\n});\n\n// Return the filtered results\nreturn {\n  results: filteredJobs,\n  originalCount: results.length,\n  filteredCount: filteredJobs.length\n};"
+      },
+      "name": "Filter code",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1740,
+        -200
+      ],
+      "id": "1d2115a0-2e75-475f-8cf0-ae3def9e1191",
+      "typeVersion": 2,
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "path": "jobs-feed",
+        "responseMode": "lastNode",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        460,
+        -200
+      ],
+      "id": "8090af2c-8373-4506-aa88-9b91c7b4797a",
+      "name": "Webhook",
+      "webhookId": "477d6af8-feb8-4e32-8734-4cdbffb95e1e"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get filtered results - make sure we get the array\nconst results = $input.item.json.results || [];\nconst formattedJobs = [];\n\nfor (const job of results) {\n  formattedJobs.push({\n    title: job.title || \"\",\n    company: job.company?.display_name || \"\",\n    location: job.location?.display_name || \"\",\n    salary: job.salary_min || null,\n    easyApply: false,\n    url: job.redirect_url || \"\",\n    summary: job.description || \"\",\n    postDate: job.created ? job.created.split('T')[0] : \"\",\n    isAd: false,\n    jobKey: job.id || \"\",\n    isSponsored: false\n  });\n}\n\n// Return the array of jobs, not just one\nreturn formattedJobs;  // This returns the array directly"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1880,
+        -200
+      ],
+      "id": "50c7fec8-9fa6-44bc-b9e9-0772a742ca07",
+      "name": "Format code",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all items from the input\nconst allItems = $input.all();\nconst allJobs = [];\n\n// Extract jobs from each item\nallItems.forEach(item => {\n  // Check if the item contains an array of jobs or a single job\n  const data = item.json;\n  \n  if (Array.isArray(data)) {\n    // It's already an array of jobs\n    allJobs.push(...data);\n  } else if (data.jobs) {\n    // It has a jobs property\n    if (Array.isArray(data.jobs)) {\n      allJobs.push(...data.jobs);\n    } else {\n      allJobs.push(data.jobs);\n    }\n  } else if (data.title) {\n    // It's a single job object\n    allJobs.push(data);\n  }\n});\n\n// Remove duplicates based on jobKey\nconst uniqueJobs = [];\nconst seenKeys = new Set();\n\nallJobs.forEach(job => {\n  if (job?.jobKey && !seenKeys.has(job.jobKey)) {\n    seenKeys.add(job.jobKey);\n    uniqueJobs.push(job);\n  }\n});\n\nreturn [{\n  json: {\n    jobs: uniqueJobs,\n    totalJobs: uniqueJobs.length,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2060,
+        -200
+      ],
+      "id": "3f079ccb-4e1a-4874-80f7-41e9d94e6129",
+      "name": "Aggregate Results"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Jobs from API": {
+      "main": [
+        [
+          {
+            "node": "Filter code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Fetch Jobs from API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter code": {
+      "main": [
+        [
+          {
+            "node": "Format code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format code": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e8c3f61e-e776-4f1f-a75c-77d43899296d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6298067642c3e349581f2e29092e2f6c83f0a76b4135fb1998c90c198e1c5829"
+  },
+  "id": "Iybe0xIifi7TasSZ",
+  "tags": []
+}
