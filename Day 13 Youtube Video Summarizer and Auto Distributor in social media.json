@@ -1,0 +1,599 @@
+{
+  "name": "Day 10 Youtube Video Summarizer",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "youtube-summarizer-analytics",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f1d04666-9e43-44ed-9eb6-4ed6f1566616",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        0
+      ],
+      "webhookId": "youtube-summarizer-analytics"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://youtube-transcripts-transcribe-youtube-video-to-text.p.rapidapi.com/transcribe",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-rapidapi-host",
+              "value": "youtube-transcripts-transcribe-youtube-video-to-text.p.rapidapi.com"
+            },
+            {
+              "name": "x-rapidapi-key",
+              "value": "xxxxxxx"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"url\": \"{{ $json.body.youtubeUrl }}\"\n}",
+        "options": {}
+      },
+      "id": "ed535219-d4ae-4dc0-becf-2459c57792ab",
+      "name": "Get YouTube Transcript",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        272,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Extract and format transcript text\nconst transcriptResponse = $input.item.json;\nlet transcriptText = '';\n\n// The API returns {transcription: \"text\"}\nif (transcriptResponse && transcriptResponse.transcription) {\n  transcriptText = transcriptResponse.transcription;\n} else {\n  throw new Error('Unable to extract transcript from the response');\n}\n\n// Get video info from webhook data\nlet webhookData;\ntry {\n  const webhookNode = $node[\"Webhook\"].json;\n  if (Array.isArray(webhookNode)) {\n    webhookData = webhookNode[0].body || webhookNode[0];\n  } else {\n    webhookData = webhookNode.body || webhookNode;\n  }\n} catch (e) {\n  webhookData = { youtubeUrl: '', videoId: '' };\n}\n\nreturn {\n  transcript: transcriptText,\n  youtubeUrl: webhookData.youtubeUrl || '',\n  videoId: webhookData.videoId || '',\n  transcriptLength: transcriptText.length\n};"
+      },
+      "id": "64b46cd3-4f61-454b-b5e1-e655e92ffd1a",
+      "name": "Format Transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        464,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer xxxxxxxxx"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"deepseek-chat\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a tech enthusiast sharing interesting videos on Reddit. Write in a natural, conversational tone that matches typical Reddit posts - informative but casual, with genuine reactions. Avoid overusing emojis or slang that might seem artificial.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"I watched this YouTube video and want to share it on Reddit. Create a post that sounds like a real person discovered something interesting.\\n\\nVideo URL: {{ $json.youtubeUrl }}\\n\\nTranscript:\\n{{ $json.transcript }}\\n\\nRULES:\\n- Title: Informative and intriguing (max 100 chars)\\n- Content: 2-3 paragraphs that feel natural\\n- Include key points from the video\\n- Add personal thoughts/reactions naturally\\n- Use simple, conversational language\\n- Maximum 1-2 emojis total (if any)\\n- Don't mention it's a summary or AI-generated\\n- End with a discussion prompt\\n\\nFormat:\\nTITLE: [title here]\\n\\nCONTENT:\\n[content here]\"\n    }\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 800\n}",
+        "options": {}
+      },
+      "id": "e3426895-8d53-4223-a768-172b01c03c2a",
+      "name": "DeepSeek API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        720,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "e8EQb7qRqm3hFAFZ",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/youtube/v3/videos",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "part",
+              "value": "snippet,contentDetails,statistics,status"
+            },
+            {
+              "name": "id",
+              "value": "={{ $json.videoId }}"
+            },
+            {
+              "name": "key",
+              "value": "=xxxxxx"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b817090e-7894-4e20-a50b-eca17582fedd",
+      "name": "Get Video Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        368,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/youtube/v3/channels",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "part",
+              "value": "snippet,statistics,brandingSettings,contentDetails"
+            },
+            {
+              "name": "id",
+              "value": "={{ $json.items[0].snippet.channelId }}"
+            },
+            {
+              "name": "key",
+              "value": "=AIzaSyC-dxPFt3Vb9scQA6kRAYoUYyfRP80XYOw"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "403e0c47-19b1-433f-8247-443b5628d61d",
+      "name": "Get Channel Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        624,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Get data from previous nodes with error handling\nlet videoData, channelData;\n\ntry {\n  // Check if video data exists (handle array response)\n  const videoResponse = $node[\"Get Video Details\"].json;\n  if (Array.isArray(videoResponse) && videoResponse[0]) {\n    videoData = videoResponse[0].items[0];\n  } else if (videoResponse && videoResponse.items && videoResponse.items[0]) {\n    videoData = videoResponse.items[0];\n  } else {\n    throw new Error(\"No video data found\");\n  }\n} catch (e) {\n  return {\n    error: \"Unable to get video data\",\n    message: e.message\n  };\n}\n\ntry {\n  // Check if channel data exists (handle array response)\n  const channelResponse = $node[\"Get Channel Details\"].json;\n  if (Array.isArray(channelResponse) && channelResponse[0]) {\n    channelData = channelResponse[0].items[0];\n  } else if (channelResponse && channelResponse.items && channelResponse.items[0]) {\n    channelData = channelResponse.items[0];\n  } else {\n    throw new Error(\"No channel data found\");\n  }\n} catch (e) {\n  return {\n    error: \"Unable to get channel data\",\n    message: e.message\n  };\n}\n\n// Calculate earnings estimates\nconst views = parseInt(videoData.statistics.viewCount) || 0;\nconst likes = parseInt(videoData.statistics.likeCount) || 0;\nconst comments = parseInt(videoData.statistics.commentCount) || 0;\n\nconst channelViews = parseInt(channelData.statistics.viewCount) || 0;\nconst subscriberCount = parseInt(channelData.statistics.subscriberCount) || 0;\nconst videoCount = parseInt(channelData.statistics.videoCount) || 1;\n\n// CPM (Cost Per Mille) estimates based on channel size\nlet estimatedCPM = 2; // Default $2 CPM\n\nif (subscriberCount > 1000000) {\n  estimatedCPM = 7; // Large channels get better rates\n} else if (subscriberCount > 100000) {\n  estimatedCPM = 5;\n} else if (subscriberCount > 10000) {\n  estimatedCPM = 3;\n}\n\n// Video earnings calculation\nconst videoEarnings = {\n  low: (views / 1000) * (estimatedCPM * 0.5),\n  mid: (views / 1000) * estimatedCPM,\n  high: (views / 1000) * (estimatedCPM * 2)\n};\n\n// Channel monthly earnings (rough estimate)\nconst avgMonthlyViews = channelViews / 12;\nconst monthlyEarnings = {\n  low: (avgMonthlyViews / 1000) * (estimatedCPM * 0.5),\n  mid: (avgMonthlyViews / 1000) * estimatedCPM,\n  high: (avgMonthlyViews / 1000) * (estimatedCPM * 2)\n};\n\n// Engagement metrics\nconst engagementRate = views > 0 ? ((likes + comments) / views * 100).toFixed(2) : \"0\";\n\nreturn {\n  channelId: channelData.id,\n  videoAnalytics: {\n    views: views.toLocaleString(),\n    likes: likes.toLocaleString(),\n    comments: comments.toLocaleString(),\n    engagementRate: engagementRate + '%',\n    estimatedEarnings: {\n      low: '$' + videoEarnings.low.toFixed(2),\n      mid: '$' + videoEarnings.mid.toFixed(2),\n      high: '$' + videoEarnings.high.toFixed(2),\n      note: 'Based on estimated CPM of $' + estimatedCPM\n    }\n  },\n  channelAnalytics: {\n    name: channelData.snippet.title || 'Unknown',\n    description: (channelData.snippet.description || '').substring(0, 200) + '...',\n    country: channelData.snippet.country || 'Not specified',\n    customUrl: channelData.snippet.customUrl || '',\n    publishedAt: channelData.snippet.publishedAt ? new Date(channelData.snippet.publishedAt).toLocaleDateString() : 'Unknown',\n    subscribers: subscriberCount.toLocaleString(),\n    totalViews: channelViews.toLocaleString(),\n    totalVideos: videoCount.toLocaleString(),\n    averageViewsPerVideo: Math.round(channelViews / videoCount).toLocaleString(),\n    estimatedMonthlyEarnings: {\n      low: '$' + monthlyEarnings.low.toFixed(2),\n      mid: '$' + monthlyEarnings.mid.toFixed(2),\n      high: '$' + monthlyEarnings.high.toFixed(2),\n      note: 'Rough estimate based on total channel views'\n    },\n    channelKeywords: channelData.brandingSettings?.channel?.keywords || 'Not specified',\n    featuredChannels: channelData.brandingSettings?.channel?.featuredChannelsUrls?.length || 0\n  }\n};"
+      },
+      "id": "cfd8a3b0-060a-4f12-9629-3cb5b9e3ac3a",
+      "name": "Calculate Analytics & Earnings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1104,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://youtubeanalytics.googleapis.com/v2/reports",
+        "options": {}
+      },
+      "id": "32802985-e49a-4f3e-a7d9-c6a5fba0f091",
+      "name": "YouTube Analytics (Optional)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        544,
+        352
+      ],
+      "disabled": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Get data from previous nodes safely\nlet deepseekResponse, videoInfo, analyticsData, transcriptData;\n\ntry {\n  deepseekResponse = $node[\"DeepSeek API\"].json;\n  if (Array.isArray(deepseekResponse)) {\n    deepseekResponse = deepseekResponse[0];\n  }\n} catch (e) {\n  deepseekResponse = null;\n}\n\ntry {\n  videoInfo = $node[\"Get Video Details\"].json;\n  if (Array.isArray(videoInfo)) {\n    videoInfo = videoInfo[0];\n  }\n} catch (e) {\n  videoInfo = null;\n}\n\ntry {\n  analyticsData = $node[\"Calculate Analytics & Earnings\"].json;\n  if (Array.isArray(analyticsData)) {\n    analyticsData = analyticsData[0];\n  }\n} catch (e) {\n  analyticsData = null;\n}\n\ntry {\n  transcriptData = $node[\"Format Transcript\"].json;\n  if (Array.isArray(transcriptData)) {\n    transcriptData = transcriptData[0];\n  }\n} catch (e) {\n  transcriptData = null;\n}\n\n// Debug logging\nconsole.log('Raw analyticsData:', analyticsData);\nconsole.log('Has videoAnalytics?', analyticsData?.videoAnalytics);\nconsole.log('Has channelAnalytics?', analyticsData?.channelAnalytics);\n\n// Extract summary\nlet summary = '';\nif (deepseekResponse && deepseekResponse.choices && deepseekResponse.choices[0]) {\n  summary = deepseekResponse.choices[0].message.content;\n} else {\n  summary = 'Summary generation failed';\n}\n\n// Build response with defaults\nconst response = {\n  success: true,\n  youtubeUrl: transcriptData ? transcriptData.youtubeUrl : '',\n  videoId: transcriptData ? transcriptData.videoId : '',\n  timestamp: new Date().toISOString(),\n  summary: summary\n};\n\n// Try to add video details\nif (videoInfo && videoInfo.items && videoInfo.items[0]) {\n  const videoItem = videoInfo.items[0];\n  response.title = videoItem.snippet.title || 'Unknown Title';\n  response.channel = videoItem.snippet.channelTitle || 'Unknown Channel';\n  response.publishedAt = videoItem.snippet.publishedAt ? new Date(videoItem.snippet.publishedAt).toLocaleDateString() : 'Unknown';\n  \n  // Parse duration\n  if (videoItem.contentDetails && videoItem.contentDetails.duration) {\n    const isoDuration = videoItem.contentDetails.duration;\n    const match = isoDuration.match(/PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?/);\n    if (match) {\n      const hours = parseInt(match[1]) || 0;\n      const minutes = parseInt(match[2]) || 0;\n      const seconds = parseInt(match[3]) || 0;\n      \n      if (hours > 0) {\n        response.duration = `${hours}h ${minutes}m ${seconds}s`;\n      } else if (minutes > 0) {\n        response.duration = `${minutes}m ${seconds}s`;\n      } else {\n        response.duration = `${seconds}s`;\n      }\n    } else {\n      response.duration = 'Unknown';\n    }\n  }\n  \n  // Add tags\n  response.tags = videoItem.snippet.tags || [];\n}\n\n// IMPORTANT FIX: Only add analytics if it's actually available and not an error\nif (analyticsData && analyticsData.videoAnalytics && analyticsData.channelAnalytics) {\n  // Analytics data is available\n  response.analytics = {\n    video: analyticsData.videoAnalytics,\n    channel: analyticsData.channelAnalytics\n  };\n} else {\n  // No analytics data or error occurred\n  response.analytics = {\n    video: {},\n    channel: {},\n    note: analyticsData?.error || \"Analytics data not available\"\n  };\n}\n\n// More debug logging\nconsole.log('Final response analytics:', response.analytics);\n\nreturn response;"
+      },
+      "id": "d0edf008-50b4-48b4-ba59-7f5fac3212c1",
+      "name": "Format Final Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $node[\"Webhook\"].json.body.videoId }}",
+              "operation": "notEqual"
+            }
+          ]
+        }
+      },
+      "id": "4527a1af-018e-4163-832a-fd4dec899b71",
+      "name": "Check Video ID",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        80,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": false,\n  \"error\": \"Invalid YouTube URL provided\",\n  \"message\": \"Please provide a valid YouTube video URL\"\n}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "73971aba-af36-4f35-85d5-6441b3ce6735",
+      "name": "Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        64,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/youtube/v3/videos",
+        "options": {}
+      },
+      "id": "1fd57d08-616a-4c69-b119-6c229776c154",
+      "name": "Get Recent Channel Videos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        880,
+        400
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Get the data\nconst summary = $json.summary || '';\nconst originalTitle = $json.title || '';\nconst youtubeUrl = $json.youtubeUrl || '';\nconst channel = $json.channel || '';\nconst videoId = $json.videoId || '';\n\n// Get YouTube thumbnail URL\nconst thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg` : '';\n\n// Parse the AI-generated title and content from the summary\nlet redditTitle = '';\nlet redditContent = '';\n\n// Extract from the summary which contains \"TITLE: ... CONTENT: ...\"\nconst titleMatch = summary.match(/TITLE:\\s*(.+?)(?:\\n|$)/);\nconst contentMatch = summary.match(/CONTENT:\\s*([\\s\\S]+)/);\n\nif (titleMatch) {\n  redditTitle = titleMatch[1].trim();\n} else {\n  redditTitle = `Check out this ${channel} video!`;\n}\n\nif (contentMatch) {\n  redditContent = contentMatch[1].trim();\n} else {\n  redditContent = summary;\n}\n\n// Create content for other platforms (for future use)\nconst twitterContent = `🎥 ${originalTitle.substring(0, 100)}... \n\nCheck it out: ${youtubeUrl}\n\n#YouTube #AI #Tech`;\n\nconst linkedinContent = `📺 ${originalTitle}\n\n${redditContent.substring(0, 500)}...\n\nChannel: ${channel}\nFull video: ${youtubeUrl}\n\n#ContentCreation #YouTube #TechInsights`;\n\nconst instagramCaption = `📱 ${originalTitle}\n\n👤 Creator: ${channel}\n🔗 Link in bio\n\n#YouTubeContent #TechTips #AITools`;\n\n// Return formatted content\nreturn {\n  videoId: videoId,\n  youtubeUrl: youtubeUrl,\n  title: originalTitle,\n  channel: channel,\n  summary: summary,\n  thumbnailUrl: thumbnailUrl,\n  socialMedia: {\n    twitter: {\n      content: twitterContent.substring(0, 280),\n      platform: 'twitter'\n    },\n    linkedin: {\n      content: linkedinContent,\n      platform: 'linkedin'\n    },\n    reddit: {\n      title: redditTitle,  // Now properly extracted\n      content: redditContent,  // Now properly extracted\n      thumbnailUrl: thumbnailUrl,\n      platform: 'reddit'\n    },\n    instagram: {\n      caption: instagramCaption,\n      platform: 'instagram'\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1408,
+        0
+      ],
+      "id": "cb4111e3-1259-4b9c-936d-0e84ef204d61",
+      "name": "Prepare Social Media Content"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the data\nconst summary = $json.summary || '';\nconst originalTitle = $json.title || '';\nconst youtubeUrl = $json.youtubeUrl || '';\nconst channel = $json.channel || '';\nconst videoId = $json.videoId || '';\n\n// Get YouTube thumbnail URL\nconst thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg` : '';\n\n// Parse the AI-generated title and content from the summary\nlet redditTitle = '';\nlet redditContent = '';\n\n// Extract title - handle asterisks and formatting\nconst titleMatch = summary.match(/\\*{0,2}TITLE:\\s*(.+?)(?:\\*{0,2})\\s*(?:\\n|$)/);\n\nif (titleMatch) {\n  // Clean the title - remove all asterisks\n  redditTitle = titleMatch[1].replace(/\\*+/g, '').trim();\n} else {\n  redditTitle = `Check out this ${channel} video!`;\n}\n\n// Extract content - get everything after the TITLE line\nconst contentSplit = summary.split(/\\*{0,2}TITLE:.*?\\*{0,2}\\s*\\n+/);\nif (contentSplit.length > 1) {\n  redditContent = contentSplit[1].trim();\n} else {\n  // If split didn't work, try to find where content starts\n  const contentMatch = summary.match(/CONTENT:\\s*([\\s\\S]+)/);\n  if (contentMatch) {\n    redditContent = contentMatch[1].trim();\n  } else {\n    // Last resort - use summary but remove title line\n    redditContent = summary.replace(/\\*{0,2}TITLE:.*?\\*{0,2}\\s*\\n+/, '').trim();\n  }\n}\n\n// Create content for other platforms (for future use)\nconst twitterContent = `🎥 ${originalTitle.substring(0, 100)}... \n\nCheck it out: ${youtubeUrl}\n\n#YouTube #AI #Tech`;\n\nconst linkedinContent = `📺 ${originalTitle}\n\n${redditContent.substring(0, 500)}...\n\nChannel: ${channel}\nFull video: ${youtubeUrl}\n\n#ContentCreation #YouTube #TechInsights`;\n\nconst instagramCaption = `📱 ${originalTitle}\n\n👤 Creator: ${channel}\n🔗 Link in bio\n\n#YouTubeContent #TechTips #AITools`;\n\n// Debug logs\nconsole.log(\"Cleaned Reddit Title:\", redditTitle);\nconsole.log(\"Cleaned Reddit Content:\", redditContent.substring(0, 100) + \"...\");\n\n// Return formatted content\nreturn {\n  videoId: videoId,\n  youtubeUrl: youtubeUrl,\n  title: originalTitle,\n  channel: channel,\n  summary: summary,\n  thumbnailUrl: thumbnailUrl,\n  socialMedia: {\n    twitter: {\n      content: twitterContent.substring(0, 280),\n      platform: 'twitter'\n    },\n    linkedin: {\n      content: linkedinContent,\n      platform: 'linkedin'\n    },\n    reddit: {\n      title: redditTitle,  // Clean title without asterisks\n      content: redditContent,  // Content without title line\n      thumbnailUrl: thumbnailUrl,\n      platform: 'reddit'\n    },\n    instagram: {\n      caption: instagramCaption,\n      platform: 'instagram'\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1632,
+        0
+      ],
+      "id": "afb70925-d091-42e9-ae0c-18bd25325f1a",
+      "name": "Split social platforms"
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "output": "={{ $json.platform === \"twitter\" ? 0 : $json.platform === \"linkedin\" ? 1 : $json.platform === \"reddit\" ? 2 : 3 }}",
+        "looseTypeValidation": true
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1712,
+        400
+      ],
+      "id": "289b3156-d6c3-487d-bb15-70ed4e47f123",
+      "name": "Platform Router",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.twitter",
+      "typeVersion": 2,
+      "position": [
+        1904,
+        384
+      ],
+      "id": "5916fbca-7a3f-4f85-ab72-c0cca0b70596",
+      "name": "Create Tweet",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "subreddit": "P3Lending",
+        "title": "={{ $json.title }}",
+        "text": "={{ $json.socialMedia.reddit.content }}"
+      },
+      "type": "n8n-nodes-base.reddit",
+      "typeVersion": 1,
+      "position": [
+        1840,
+        0
+      ],
+      "id": "ba111d18-c1de-4eb2-bb66-f5e9b6288b61",
+      "name": "Create a post",
+      "credentials": {
+        "redditOAuth2Api": {
+          "id": "xxxxxxxx",
+          "name": "Reddit account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Get DeepSeek response\nconst deepseekResponse = $json;\nlet aiContent = '';\n\n// Extract the AI response\nif (deepseekResponse && deepseekResponse.choices && deepseekResponse.choices[0]) {\n  aiContent = deepseekResponse.choices[0].message.content;\n} else {\n  throw new Error('No response from DeepSeek');\n}\n\n// Debug log\nconsole.log(\"Raw AI content:\", aiContent);\n\n// Parse title - handle various formats with or without asterisks\nconst titleRegex = /\\*{0,2}TITLE:\\s*(.+?)(?:\\*{0,2})\\s*$/m;\nconst titleMatch = aiContent.match(titleRegex);\n\nlet redditTitle = 'Check out this cool video I found';\nlet redditContent = aiContent;\n\nif (titleMatch) {\n  // Clean the title - remove asterisks and extra whitespace\n  redditTitle = titleMatch[1].replace(/\\*+/g, '').trim();\n}\n\n// Extract content - everything after the TITLE line\nconst contentSplit = aiContent.split(/\\*{0,2}TITLE:.*?\\*{0,2}\\s*\\n+/);\nif (contentSplit.length > 1) {\n  redditContent = contentSplit[1].trim();\n  \n  // If content starts with CONTENT:, remove it\n  redditContent = redditContent.replace(/^CONTENT:\\s*/i, '');\n  \n  // Remove any duplicate title line in the content\n  redditContent = redditContent.replace(/^\\*{0,2}TITLE:.*?\\*{0,2}\\s*\\n+/i, '');\n  \n  // Clean up any remaining asterisks at the start\n  redditContent = redditContent.replace(/^\\*+\\s*/g, '');\n}\n\n// Final cleanup - ensure no formatting artifacts\nredditTitle = redditTitle.replace(/\\*+$/, '').trim(); // Remove trailing asterisks\nredditContent = redditContent.trim();\n\nconsole.log(\"Parsed title:\", redditTitle);\nconsole.log(\"Parsed content:\", redditContent);\n\n// Pass through all data plus parsed content\nreturn {\n  ...$json,\n  parsedTitle: redditTitle,\n  parsedContent: redditContent,\n  rawAiResponse: aiContent\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        928,
+        0
+      ],
+      "id": "5488d701-2731-4c3b-a306-0ae1e7feded2",
+      "name": "Parse DeepSeek Response"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Posted to Reddit successfully\",\n  \"redditPost\": {\n    \"title\": \"{{ $json.title }}\",\n    \"subreddit\": \"{{ $json.subreddit }}\",\n    \"url\": \"{{ $json.url }}\"\n  },\n  \"originalVideo\": {\n    \"title\": \"{{ $node[\"Format Final Response\"].json.title }}\",\n    \"url\": \"{{ $node[\"Format Final Response\"].json.youtubeUrl }}\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        2256,
+        0
+      ],
+      "id": "9e5baa59-777a-4e95-8c64-41c82a8e9ae4",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log everything about the Reddit response\nconsole.log(\"Reddit node output:\", JSON.stringify($json, null, 2));\nconsole.log(\"Input to Reddit node:\", JSON.stringify($input.all(), null, 2));\n\n// Check if we got a response\nif (!$json || (Array.isArray($json) && $json.length === 0)) {\n  return {\n    error: \"No response from Reddit\",\n    possibleReasons: [\n      \"Account doesn't meet subreddit requirements\",\n      \"Reddit silently rejected the post\",\n      \"API credentials issue\",\n      \"Rate limiting\"\n    ],\n    inputData: $input.all()[0].json\n  };\n}\n\n// If we have a response, parse it\nreturn {\n  success: true,\n  redditResponse: $json,\n  postUrl: $json.url || \"No URL returned\",\n  postId: $json.id || \"No ID returned\",\n  inputTitle: $input.all()[0].json.title,\n  inputContent: $input.all()[0].json.content\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2048,
+        0
+      ],
+      "id": "fc486b49-237a-4c30-9725-82892d5377a2",
+      "name": "Code"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Check Video ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Video ID": {
+      "main": [
+        [
+          {
+            "node": "Get YouTube Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get YouTube Transcript": {
+      "main": [
+        [
+          {
+            "node": "Format Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Transcript": {
+      "main": [
+        [
+          {
+            "node": "DeepSeek API",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Video Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Video Details": {
+      "main": [
+        [
+          {
+            "node": "Get Channel Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Channel Details": {
+      "main": [
+        [
+          {
+            "node": "Calculate Analytics & Earnings",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "YouTube Analytics (Optional)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Recent Channel Videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek API": {
+      "main": [
+        [
+          {
+            "node": "Parse DeepSeek Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Analytics & Earnings": {
+      "main": [
+        [
+          {
+            "node": "Format Final Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube Analytics (Optional)": {
+      "main": [
+        [
+          {
+            "node": "Format Final Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Final Response": {
+      "main": [
+        [
+          {
+            "node": "Prepare Social Media Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Social Media Content": {
+      "main": [
+        [
+          {
+            "node": "Split social platforms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split social platforms": {
+      "main": [
+        [
+          {
+            "node": "Create a post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Platform Router": {
+      "main": [
+        [
+          {
+            "node": "Create Tweet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse DeepSeek Response": {
+      "main": [
+        [
+          {
+            "node": "Format Final Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a post": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "d6fdd08a-59a3-43cd-9782-ff4bec6eb903",
+  "meta": {
+    "instanceId": "6298067642c3e349581f2e29092e2f6c83f0a76b4135fb1998c90c198e1c5829"
+  },
+  "id": "84TTpYFPCg5Gurr2",
+  "tags": []
+}
